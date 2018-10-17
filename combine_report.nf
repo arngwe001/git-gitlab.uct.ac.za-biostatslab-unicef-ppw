@@ -672,6 +672,52 @@ exit 1
 //        rm ${dataset}.tmp*.vcf.gz
 //        """
 //}
+//        tags = params.tagSNPs_files.keySet().join('-')
+//        chrms = chromosomes[0]+"-"+chromosomes[-1]
+//        infoCutoff = params.impute_info_cutoff
+//        outWell_imputed = "${inWell_imputed.baseName}_report_well_imputed.tsv"
+//        template "report_well_imputed_dataset_by_maf.py"
+//
+//"""
+//Plot performance all tags by maf
+//"""
+////report_well_imputed_dataset.into{ report_well_imputed_dataset; report_well_imputed_dataset_1 }
+////process plot_performance_dataset{
+////    tag "plot_performance_dataset_${dataset}_${tags}_${chrms}"
+////    cpus { 2 * task.attempt }
+////    memory { 2.GB * task.cpus }
+////    publishDir "${params.output_dir}/REPORTS/PLOTS/${dataset}", overwrite: true, mode:'copy'
+////    input:
+////        set val(dataset), file(well_imputed_report) from report_well_imputed_dataset_1
+////    output:
+////        set val(dataset), file(performance_by_maf_plot) into plot_performance_dataset
+////    script:
+////        performance_by_maf_plot = "${well_imputed_report.baseName}_performance_by_maf.tiff"
+////        group = "CHIP"
+////        template "plot_performance_by_maf.R"
+////}
+//
+//
+//"""
+//Repor 2: Accuracy by dataset by chunk
+//"""
+//filter_info_dataset.into{ filter_info_dataset; filter_info_dataset_2}
+//process report_SNP_acc_dataset {
+//    tag "report_SNP_acc_${dataset}_${tags}_${chrms}"
+//    memory { 2.GB * task.attempt }
+//    maxRetries 1
+//        set val(refName), val(dataset), val(dataset_vcfs) from imputeCombine_chrm_all_cha
+//        set val(refName), val(dataset), file(vcf_out) into concat_dataset_vcf
+//        vcf_out = "${dataset}_${refName}_chr${chrms}.vcf.gz"
+//        """
+//        bcftools concat \
+//            ${dataset_vcfs} \
+//            -Oz -o ${dataset}.tmp.vcf.gz
+//        ## Recalculate AC, AN, AF
+//        bcftools +fill-tags  ${dataset}.tmp.vcf.gz -Oz -o  ${dataset}.tmp1.vcf.gz
+//        bcftools sort ${dataset}.tmp1.vcf.gz -Oz -o ${vcf_out}
+//        rm ${dataset}.tmp*.vcf.gz
+//        """
 
 ////workflow.onComplete {
 ////    if ( workflow.success == true ){
