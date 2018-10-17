@@ -2,18 +2,18 @@
 #PBS -q UCTlong
 #PBS -l nodes=1:ppn=10
 #PBS -j oe
-#PBS -o /researchdata/fhgfs/mamana/AFRICA_CHIP/qc_two_samples/LOG/qc_two_samples.out
-#PBS -M mbymam001@myuct.ac.za
+#PBS -o /researchdata/fhgfs/arngwe001/imputation/nextflow/LOG/qc_two_samples.out
+#PBS -M arngwe001001@myuct.ac.za
 #PBS -m ae
 
 HOMEDIR="${HOME}/imputation/combine_report"
-OUTDIR="/researchdata/fhgfs/mamana/combine_report"
+OUTDIR="/researchdata/fhgfs/arngwe001/combine_report"
 PROJECT="gwen"
 
 ## Compile results
 nextflow -log ${OUTDIR}/${PROJECT}/LOG/combine_report.log \
-    run ${HOMEDIR}/combine_report.nf \
-    -c ${HOMEDIR}/combine_report.config \
+    run ${HOMEDIR}/Git/combine_report.nf \
+    -c ${HOMEDIR}/Git/combine_report.config \
     -w ${OUTDIR}/work \
     -resume \
     -with-trace ${OUTDIR}/${PROJECT}/LOG/combine_report.txt \

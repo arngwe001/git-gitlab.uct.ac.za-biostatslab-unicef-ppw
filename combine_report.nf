@@ -74,45 +74,10 @@ tags = params.tagSNPs_files.keySet().join('-')
 
 // check if files exist
 datasets_all = [:]
-for (chrm in chromosomes){
-    params.ref_panels.each{ ref_data ->
-        ref = ref_data.key
-        // For each Ref
-        if(!file(sprintf(params.ref_panels[ref].hapFile, chrm)).exists()) exit 1, "File ${params.ref_panels[ref].hapFile} not found. Please check your config file."
-        if(!file(sprintf(params.ref_panels[ref].vcfFile, chrm)).exists()) exit 1, "File ${params.ref_panels[ref].vcfFile} not found. Please check your config file."
-        if(!file(sprintf(params.ref_panels[ref].legendFile, chrm)).exists()) exit 1, "File ${params.ref_panels[ref].legendFile} not found. Please check your config file."
-        if(!file(sprintf(params.ref_panels[ref].mapFile, chrm)).exists()) exit 1, "File ${params.ref_panels[ref].mapFile} not found. Please check your config file."
-        if(!file(sprintf(params.ref_panels[ref].sampleFile, chrm)).exists()) exit 1, "File ${params.ref_panels[ref].sampleFile} not found. Please check your config file."
-    }
-    params.datasets.each{ dataset ->
-        dataset_file = sprintf(dataset.value, chrm)
-        if(!file(dataset_file).exists()){
-            println "File ${dataset_file} not found. Please check your config file."
-            exit 1
-        }
-        else{
-            if(!(dataset.key in datasets_all)){
-                datasets_all[dataset.key] = [dataset.key, dataset_file]
-            }
-            else{
-                datasets_all[dataset.key][1] += ' ' + dataset_file
-            }
-        }
-    }
-}
-all_ref_names = []
-params.ref_panels.each{ ref_data ->
-    ref = ref_data.key
-    all_ref_names << params.ref_panels[ref].name
-}
-all_ref_names = all_ref_names.join('_')
 
-chunks_all = []
-chromosomes.each{ chrm ->
-    chunks_all << file("${params.output_dir}/chunks/${all_ref_names}_analysis_chunks_${params.chunk_size[0..-4]}Kb_chr${chrm}.txt").text.split()
-}
-// println chunks_all
-chunks_all_cha = chunks_all.flatten().join('==')
+all_ref_names = []
+
+all_ref_names = params.ref_panels.split(',')
 
 imputes = [:]
 infos = [:]
@@ -129,7 +94,7 @@ imputes_ld_all = []
 chunks = []
 chunk_dataset = [:]
 chunk_tagName = [:]
-params.ref_panels.keySet().each { ref ->
+params.datasets.keySet().each { dataset ->
     ref_name = params.ref_panels[ref].name
     dataset = ref_name
     println "Checking dataset ${ref_name} ..."
