@@ -2,6 +2,7 @@
 
 import argparse,sys
 import time
+import gzip
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--infoFiles", help="")
@@ -44,6 +45,7 @@ def filter_info(infoFiles, infoCutoff, outWell_imputed, outSNP_acc):
     outWell_imputed_out = open(outWell_imputed, 'w')
     outWell_imputed_snp_out = open(outWell_imputed+"_snp", 'w')
     outSNP_accuracy_out = open(outSNP_acc, 'w')
+    print infoFiles
     for infoFile in infoFiles:
         infoFile = infoFile.strip().split('==')
         dataset = infoFile[0]
@@ -52,18 +54,18 @@ def filter_info(infoFiles, infoCutoff, outWell_imputed, outSNP_acc):
         well_imputed_common[dataset] = []
         SNP_concordance[dataset] = []
         # outWell_imputed_out_dataset = open(dataset+'_'+outWell_imputed, 'w')
-        for line in open(info):
+        for line in gzip.open(info):
             data = line.strip().split()
-            if "snp_id" in line and "info" in line:
+            if "SNP" in line and "Rsq" in line:
                 if len(header) == 0:
                     header = data
-                    info_idx = header.index("info")
-                    conc_idx = header.index("concord_type0")
-                    certainty_idx = header.index("certainty")
-                    maf_idx = header.index("exp_freq_a1")
-                    pos_idx = header.index("position")
-                    a1_idx = header.index('a1')
-                    a0_idx = header.index('a0')
+                    info_idx = header.index("Rsq")
+                    conc_idx = header.index("LooRsq")
+                    certainty_idx = header.index("AvgCall")
+                    maf_idx = header.index("MAF")
+                    #pos_idx = header.index("position")
+                    a1_idx = header.index('REF(0)')
+                    a0_idx = header.index('ALT(1)')
                     outWell_imputed_out.writelines(' '.join([dataset]+data)+'\n')
                     # outWell_imputed_out_dataset.writelines(' '.join([dataset]+data)+'\n')
                     outWell_imputed_snp_out.writelines(data[1]+'\n')
@@ -71,7 +73,7 @@ def filter_info(infoFiles, infoCutoff, outWell_imputed, outSNP_acc):
             else:
                 info = data[info_idx]
                 conc = data[conc_idx]
-                pos = data[pos_idx]
+                #pos = data[pos_idx]
                 a0 = data[a0_idx]
                 a1 = data[a1_idx]
                 try:
@@ -85,13 +87,13 @@ def filter_info(infoFiles, infoCutoff, outWell_imputed, outSNP_acc):
                 else:
                     maf = exp_maf
                 certainty = data[certainty_idx]
-                if float(info) >= float(infoCutoff) and float(certainty) == 1:
+                if info != '-' and (float(info) >= float(infoCutoff) and float(certainty) == 1):
                     outWell_imputed_out.writelines(' '.join([dataset]+data)+'\n')
                     if maf >= 0.05:
                         well_imputed_common[dataset].append(data)
                     well_imputed[dataset].append(data)
                     outWell_imputed_snp_out.writelines(data[1]+'\n')
-                if float(conc) != float(-1):
+                if conc == '-':
                     outSNP_accuracy_out.writelines(' '.join([dataset]+data)+'\n')
                 count += 1
     outWell_imputed_out.close()

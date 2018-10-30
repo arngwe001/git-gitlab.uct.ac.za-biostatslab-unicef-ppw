@@ -48,10 +48,10 @@ def acc_by_maf(inSNP_acc, outSNP_acc):
             datas[dataset]['mono'] = []
             datas[dataset]['common'] = []
             datas[dataset]['total'] = 0
-        if "snp_id" in line and "info" in line:
-            idx_exp_freq_a1 = data.index('exp_freq_a1')
+        if "SNP" in line and "Rsq" in line:
+            idx_exp_freq_a1 = data.index('MAF')
             # idx_conc = data.index("concord_type0")
-            idx_conc = data.index("r2_type0")
+            idx_conc = data.index("LooRsq")
         else:
             maf = float(data[idx_exp_freq_a1])
             acc = float(data[idx_conc])

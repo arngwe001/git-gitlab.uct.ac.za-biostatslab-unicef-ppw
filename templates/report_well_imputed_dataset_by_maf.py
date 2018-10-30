@@ -50,8 +50,8 @@ def well_imputed_by_maf(inWell_imputed, outWell_imputed):
             datas[dataset]['mono'] = []
             datas[dataset]['common'] = []
             datas[dataset]['total'] = 0
-        if "snp_id" in line and "info" in line:
-            idx_exp_freq_a1 = data.index('exp_freq_a1')
+        if "SNP" in line and "Rsq" in line:
+            idx_exp_freq_a1 = data.index('MAF')
         else:
             maf = float(data[idx_exp_freq_a1])
             datas[dataset]['total'] += 1

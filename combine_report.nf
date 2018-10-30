@@ -61,12 +61,10 @@ else{
 }
 
 println "|-- Chromosomes used: ${chromosomes.join(', ')}"
-println "|-- Chip lists used: ${params.tagSNPs_files.keySet().join(', ')}"
 println "|-- Population groups used: ${params.datasets.keySet().join(', ')}"
 
 datasets = params.datasets.keySet().join('-')
 chrms = chromosomes[0]+"-"+chromosomes[-1]
-tags = params.tagSNPs_files.keySet().join('-')
 
 // Help functions
 
@@ -75,7 +73,7 @@ tags = params.tagSNPs_files.keySet().join('-')
 // check if files exist
 datasets_all = [:]
 
-all_ref_names = all_ref_names.split(',')
+all_ref_names = params.ref_panels.split(',')
 
 
 imputes = [:]
@@ -93,213 +91,110 @@ imputes_ld_all = []
 chunks = []
 chunk_dataset = [:]
 chunk_tagName = [:]
+infos_dataset = [:]
+imputes_dataset = [:]
 params.datasets.each{ dat ->
-    params.ref_panels.each { ref_name ->
-        println "Checking dataset ${ref_name} ..."
-        if (!(dataset in infos.keySet())){
-            infos_dataset[dataset] = [dataset]
-        }
-        if (!(dataset in imputes.keySet())){
-            imputes_dataset[dataset] = [dataset]
-        }
-        info = sprintf(params.result_files.info, [ref_name, tagName, chrm, chrm, tagName, ref_name, chunk_start, chunk_end])
-        impute = sprintf(params.result_files.impute, [ref_name, tagName, chrm, chrm, tagName, ref_name, chunk_start, chunk_end])
+    dataset = dat.key
+    all_ref_names.each { ref_name ->
+        info = sprintf(dat.value.info, [ref_name,ref_name])
+        impute = sprintf(dat.value.impute, [ref_name, ref_name])
         if (!file(info).exists()) {
             not_found << info
             exit 1, "${not_found.size()} File(s) ${not_found.join(', ')} not found. Please check your config file."
         } else {
-            infos_dataset[id][1] = infos[id][1] + ' ' + info
-//            if (!(dataset_tagName_chrm in infos_refs_dataset_all.keySet())){
-//                infos_refs_dataset_all[dataset_tagName_chrm] = [dataset, tagName, chrm, info]
-//            }
-//            else{
-//                infos_refs_dataset_all[dataset_tagName_chrm][3] += ' ' + info
-//            }
-//            if (!(chunk in chunk_dataset[dataset_chrm])){
-//              chunk_dataset[dataset_chrm] << chunk
-//            }
-//            if (!(chunk in chunk_tagName[tagName_chrm])){
-//              chunk_tagName[tagName_chrm] << chunk
-//            }
+            if (!(dataset in infos_dataset.keySet())){
+                infos_dataset[dataset] = [dataset, ref_name+'=='+info]
+            }
+            else {
+                infos_dataset[dataset][1] = infos_dataset[dataset][1] + ',' + ref_name + '==' + info
+            }
         }
         if (!file(impute).exists()) {
             not_found << impute
             exit 1, "${not_found.size()} File(s) ${not_found.join(', ')} not found. Please check your config file."
         } else {
-            imputes_dataset[id][1] = imputes_dataset[id][1] + ' ' + impute
-//            if (!(dataset_tagName_chrm in imputes_refs_dataset_all.keySet())){
-//                imputes_refs_dataset_all[dataset_tagName_chrm] = [dataset, tagName, chrm, impute]
-//            }
-//            else{
-//                imputes_refs_dataset_all[dataset_tagName_chrm][3] += ' ' + impute
-//            }
+            if (!(dataset in imputes_dataset.keySet())){
+                imputes_dataset[dataset] = [dataset, ref_name+'=='+impute]
+            }
+            else {
+                imputes_dataset[dataset][1] = imputes_dataset[dataset][1] + ',' + ref_name + '==' + impute
+            }
         }
     }
 }
-//infos_refs_dataset.each { item ->
-//  infos_refs_dataset[item.key] << chunk_dataset[item.key].join('==')
-//}
 
-//imputes_cha = Channel.from(imputes_refs_dataset_all.values())
+"""
+Filter grouped by tagname
+"""
+infos_dataset_cha = Channel.from( infos_dataset.values() )
+process filter_infos_dataset {
+    tag "filter_${dataset}"
+    memory { 10.GB * task.attempt }
+    publishDir "${params.output_dir}/INFOS/${dataset}", overwrite: true, mode:'copy'
+    input:
+        set dataset, infos from infos_dataset_cha
+    output:
+        set val(dataset), file(well_out), file(acc_out), file("${well_out}_snp") into filter_info_dataset
+    script:
+        chrms = chromosomes[0]+"-"+chromosomes[-1]
+        comb_info = "${dataset}_${chrms}_${params.infoCutoff.replace(".", "")}.imputed_info"
+        well_out = "${comb_info}_well_imputed"
+        acc_out = "${comb_info}_accuracy"
+        """
+        python2.7 ${params.homedir}/templates/report__.py \
+            --infoFiles ${infos} \
+            --outWell_imputed ${well_out} \
+            --outSNP_acc ${acc_out} \
+            --infoCutoff ${params.infoCutoff} 
 
-// infos_refs_tagName.each { item ->
-//   infos_refs_tagName[item.key] << chunk_tagName[item.key].join('==')
-// }
-// if (not_found.size() > 0){
-//     println "${not_found.size()} File(s) ${not_found.join(', ')} not found. Please check your config file."
-//     // exit 1, "${not_found.size()} File(s) ${not_found.join(', ')} not found. Please check your config file."
-// }
-//
+        """
+}
 
+"""
+Report 1: Well imputed by dataset by chunk
+"""
+filter_info_dataset.into{ filter_info_dataset; filter_info_dataset_1 }
+process report_well_imputed_dataset {
+    tag "report_wellImputed_${dataset}_${all_ref_names}_${chrms}"
+    memory { 2.GB * task.attempt }
+    publishDir "${params.output_dir}/REPORTS/CSV/${dataset}", overwrite: true, mode:'copy'
+    echo true
+    input:
+        set val(dataset), file(inWell_imputed), file(acc_in), file(well_SNP) from filter_info_dataset_1
+    output:
+        set val(dataset), file(outWell_imputed) into report_well_imputed_dataset
+    script:
+        chrms = chromosomes[0]+"-"+chromosomes[-1]
+        infoCutoff = params.infoCutoff
+        outWell_imputed = "${inWell_imputed.baseName}_report_well_imputed.tsv"
+        template "report_well_imputed_dataset_by_maf.py"
+}
 
-exit 1
+"""
+Plot performance all tags by maf
+"""
+report_well_imputed_dataset.into{ report_well_imputed_dataset; report_well_imputed_dataset_1 }
+process plot_performance_dataset{
+    tag "plot_performance_dataset_${dataset}_${tags}_${chrms}"
+    cpus { 2 * task.attempt }
+    memory { 2.GB * task.cpus }
+    publishDir "${params.output_dir}/REPORTS/PLOTS/${dataset}", overwrite: true, mode:'copy'
+    input:
+        set val(dataset), file(well_imputed_report) from report_well_imputed_dataset_1
+    output:
+        set val(dataset), file(performance_by_maf_plot) into plot_performance_dataset
+    script:
+        performance_by_maf_plot = "${well_imputed_report.baseName}_performance_by_maf.tiff"
+        group = "REFERENCE_PANEL"
+        template "plot_performance_by_maf.R"
+}
+
 //"""
-//Combine all chunk infos into one by dataset
-//dataset refers to refName
-//"""
-//info_Combine_info_cha = Channel.from( infos.values() )
-//process info_Combine {
-//    tag "infoComb_${id}_${chrms}"
-//    memory { 2.GB * task.attempt }
-//    publishDir "${params.output_dir}/INFOS/${dataset}/${tagName}", overwrite: true, mode:'copy'
-//    input:
-//        set id, info_files from info_Combine_info_cha
-//    output:
-//        set val(dataset), val(tagName), file(comb_info) into info_Combine
-//    script:
-//        chrms = chromosomes[0]+"-"+chromosomes[-1]
-//        comb_info = "${params.dataset}_${id}_${chrms}.imputed_info"
-//        id_ = id.split('_')
-//        dataset = id_[0]
-//        tagName = id_[1]
-//        """
-//        ## Info files
-//        echo "snp_id rs_id position a0 a1 exp_freq_a1 info certainty type info_type0 concord_type0 r2_type0" > ${comb_info}
-//        tail -q -n +2 ${info_files} >> ${comb_info}
-//        """
-//}
-//
-//
-//info_Combine.into { info_Combine; info_Combine_1 }
-//info_Combine_list = info_Combine_1.toSortedList().val
-//tag_infos = [:]
-//dataset_infos = [:]
-//info_Combine_list.each{ dataset, tagName, comb_info ->
-//    if (!(tagName in tag_infos.keySet())){
-//        tag_infos[tagName] = [tagName, dataset+"=="+comb_info]
-//    }
-//    else{
-//        tag_infos[tagName][1] = tag_infos[tagName][1] + ',' + dataset+"=="+comb_info
-//    }
-//    if (!(dataset in dataset_infos.keySet())){
-//        dataset_infos[dataset] = [dataset, tagName+"=="+comb_info]
-//    }
-//    else{
-//        dataset_infos[dataset][1] = dataset_infos[dataset][1] + ',' + tagName+"=="+comb_info
-//    }
-//}
-//
-//"""
-//Filter grouped by tagname
-//"""
-//tag_infos_cha = Channel.from( tag_infos.values() )
-//process filter_info_tagName {
-//    tag "filter_${tagName}_${datasets}_${chrms}"
-//    memory { 10.GB * task.attempt }
-//    publishDir "${params.output_dir}/INFOS/${tagName}", overwrite: true, mode:'copy'
-//    input:
-//        set val(tagName), val(infos) from tag_infos_cha
-//    output:
-//        set val(tagName), file(well_out), file(acc_out) into filter_info_tagName
-//    script:
-//        chrms = chromosomes[0]+"-"+chromosomes[-1]
-//        infoCutoff = params.impute_info_cutoff
-//        comb_info = "${params.dataset}_${dataset}_${tags}_${chrms}_${infoCutoff.replace(".", "")}.imputed_info"
-//        well_out = "${comb_info}_well_imputed"
-//        acc_out = "${comb_info}_accuracy"
-//        """
-//        python2.7 ${params.homedir}/templates/report__.py \
-//            --infoFiles ${infos} \
-//            --outWell_imputed ${well_out} \
-//            --outSNP_acc ${acc_out} \
-//            --infoCutoff ${params.impute_info_cutoff}
-//
-//        """
-//}
-//
-//
-//"""
-//Filter grouped by dataset
-//"""
-//dataset_infos_cha = Channel.from( dataset_infos.values() )
-//process filter_info_dataset {
-//    tag "filter_${comb_info}"
-//    memory { 10.GB * task.attempt }
-//    publishDir "${params.output_dir}/INFOS/${dataset}", overwrite: true, mode:'copy'
-//    input:
-//        set val(dataset), val(infoFiles) from dataset_infos_cha
-//    output:
-//        set val(dataset), file(outWell_imputed), file(outSNP_acc) into filter_info_dataset
-//        set val(dataset), file("${outWell_imputed}_snp") into filter_info_dataset_snp
-//    script:
-//        tags = params.tagSNPs_files.keySet().join('-')
-//        chrms = chromosomes[0]+"-"+chromosomes[-1]
-//        infoCutoff = params.impute_info_cutoff
-//        comb_info = "${params.dataset}_${dataset}_${tags}_${chrms}_${infoCutoff.replace(".", "")}.imputed_info"
-//        outWell_imputed = "${comb_info}_well_imputed"
-//        outSNP_acc = "${comb_info}_accuracy"
-//        template "filter_info_dataset.py"
-//}
-//
-//
-//
-//"""
-//Report 1: Well imputed by dataset by chunk
-//"""
-//filter_info_dataset.into{ filter_info_dataset; filter_info_dataset_1 }
-//process report_well_imputed_dataset {
-//    tag "report_wellImputed_${dataset}_${tags}_${chrms}"
-//    memory { 2.GB * task.attempt }
-//    publishDir "${params.output_dir}/REPORTS/CSV/${dataset}", overwrite: true, mode:'copy'
-//    echo true
-//    input:
-//        set val(dataset), file(inWell_imputed), file(acc_in) from filter_info_dataset_1
-//    output:
-//        set val(dataset), file(outWell_imputed) into report_well_imputed_dataset
-//    script:
-//        tags = params.tagSNPs_files.keySet().join('-')
-//        chrms = chromosomes[0]+"-"+chromosomes[-1]
-//        infoCutoff = params.impute_info_cutoff
-//        outWell_imputed = "${inWell_imputed.baseName}_report_well_imputed.tsv"
-//        template "report_well_imputed_dataset_by_maf.py"
-//}
-//
-//"""
-//Plot performance all tags by maf
-//"""
-////report_well_imputed_dataset.into{ report_well_imputed_dataset; report_well_imputed_dataset_1 }
-////process plot_performance_dataset{
-////    tag "plot_performance_dataset_${dataset}_${tags}_${chrms}"
-////    cpus { 2 * task.attempt }
-////    memory { 2.GB * task.cpus }
-////    publishDir "${params.output_dir}/REPORTS/PLOTS/${dataset}", overwrite: true, mode:'copy'
-////    input:
-////        set val(dataset), file(well_imputed_report) from report_well_imputed_dataset_1
-////    output:
-////        set val(dataset), file(performance_by_maf_plot) into plot_performance_dataset
-////    script:
-////        performance_by_maf_plot = "${well_imputed_report.baseName}_performance_by_maf.tiff"
-////        group = "CHIP"
-////        template "plot_performance_by_maf.R"
-////}
-//
-//
-//"""
-//Repor 2: Accuracy by dataset by chunk
+//Report 2: Accuracy by dataset by chunk
 //"""
 //filter_info_dataset.into{ filter_info_dataset; filter_info_dataset_2}
 //process report_SNP_acc_dataset {
-//    tag "report_SNP_acc_${dataset}_${tags}_${chrms}"
+//    tag "report_SNP_acc_${dataset}_${all_ref_names}_${chrms}"
 //    memory { 2.GB * task.attempt }
 //    maxRetries 1
 //    publishDir "${params.output_dir}/REPORTS/CSV/${dataset}", overwrite: true, mode:'copy'
@@ -308,9 +203,8 @@ exit 1
 //    output:
 //        set val(dataset), file(outSNP_acc) into report_SNP_acc_dataset
 //    script:
-//        tags = params.tagSNPs_files.keySet().join('-')
 //        chrms = chromosomes[0]+"-"+chromosomes[-1]
-//        infoCutoff = params.impute_info_cutoff
+//        infoCutoff = params.infoCutoff
 //        outSNP_acc = "${inSNP_acc.baseName}_report_SNP_acc.tsv"
 //        template "report_SNP_acc_dataset_by_chunk.py"
 //}
@@ -318,21 +212,21 @@ exit 1
 //"""
 //Plot accuracy all tags by maf
 //"""
-////report_SNP_acc_dataset.into{ report_SNP_acc_dataset; report_SNP_acc_dataset_1 }
-////process plot_report_SNP_acc_dataset{
-////    tag "plot_SNP_acc_dataset_${dataset}"
-////    cpus { 2 * task.attempt }
-////    memory { 2.GB * task.cpus }
-////    publishDir "${params.output_dir}/REPORTS/PLOTS/${dataset}", overwrite: true, mode:'copy'
-////    input:
-////        set val(dataset), file(SNP_acc_report) from report_SNP_acc_dataset_1
-////    output:
-////        set val(dataset), file(SNP_acc_by_maf_plot) into plot_report_SNP_acc_dataset
-////    script:
-////        SNP_acc_by_maf_plot = "${SNP_acc_report.baseName}_SNP_acc_by_maf.tiff"
-////        group = "CHIP"
-////        template "plot_SNP_acc_by_maf.R"
-////}
+//report_SNP_acc_dataset.into{ report_SNP_acc_dataset; report_SNP_acc_dataset_1 }
+//process plot_report_SNP_acc_dataset{
+//    tag "plot_SNP_acc_dataset_${dataset}"
+//    cpus { 2 * task.attempt }
+//    memory { 2.GB * task.cpus }
+//    publishDir "${params.output_dir}/REPORTS/PLOTS/${dataset}", overwrite: true, mode:'copy'
+//    input:
+//        set val(dataset), file(SNP_acc_report) from report_SNP_acc_dataset_1
+//    output:
+//        set val(dataset), file(SNP_acc_by_maf_plot) into plot_report_SNP_acc_dataset
+//    script:
+//        SNP_acc_by_maf_plot = "${SNP_acc_report.baseName}_SNP_acc_by_maf.tiff"
+//        group = "CHIP"
+//        template "plot_SNP_acc_by_maf.R"
+//}
 //
 //
 //"""
@@ -379,7 +273,7 @@ exit 1
 //
 //
 //"""
-//Repor 2.1: Accuracy for each tagName for all population by maf
+//Report 2.1: Accuracy for each tagName for all population by maf
 //"""
 //filter_info_tagName.into{ filter_info_tagName; filter_info_tagName_2}
 //process report_SNP_acc_tagName {
@@ -398,13 +292,13 @@ exit 1
 //        outSNP_acc = "${comb_info}_report_SNP_acc.tsv"
 //        template "report_SNP_acc_dataset_by_chunk.py"
 //}
-//
+///
 //"""
-//Plot accuracy all populations by maf
+///Plot accuracy all populations by maf
 //"""
 ////report_SNP_acc_tagName.into{ report_SNP_acc_tagName; report_SNP_acc_tagName_1 }
 ////process plot_report_SNP_acc_tagName{
-////    tag "plot_SNP_acc_tagName_${tagName}_${datasets}_${chrms}"
+///    tag "plot_SNP_acc_tagName_${tagName}_${datasets}_${chrms}"
 ////    cpus { 2 * task.attempt }
 ////    memory { 2.GB * task.cpus }
 ////    publishDir "${params.output_dir}/REPORTS/PLOTS/${tagName}", overwrite: true, mode:'copy'

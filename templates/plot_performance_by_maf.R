@@ -20,6 +20,6 @@ mdata <- melt(data, id=c("${group}"))
 ggplot(mdata, aes(x = variable, y = value, fill = ${group})) +
   geom_bar(stat="identity", position=position_dodge()) +
   scale_fill_manual(values=superpop.plot.colours) +
-  ylab("Number of well imputed SNPs") + xlab("MAF bins") +
+  ylab("Number of well imputed SNPs") + xlab("MAF bins") + ggtitle("${dataset}")
   theme_bw()
 ggsave("${performance_by_maf_plot}", height=6, width=10, units='in', dpi=150)
