@@ -54,7 +54,8 @@ def filter_info(infoFiles, infoCutoff, outWell_imputed, outSNP_acc):
         well_imputed_common[dataset] = []
         SNP_concordance[dataset] = []
         # outWell_imputed_out_dataset = open(dataset+'_'+outWell_imputed, 'w')
-        for line in gzip.open(info):
+        print info
+        for line in open(info):
             data = line.strip().split()
             if "SNP" in line and "Rsq" in line:
                 if len(header) == 0:
@@ -70,6 +71,7 @@ def filter_info(infoFiles, infoCutoff, outWell_imputed, outSNP_acc):
                     # outWell_imputed_out_dataset.writelines(' '.join([dataset]+data)+'\n')
                     outWell_imputed_snp_out.writelines(data[1]+'\n')
                     outSNP_accuracy_out.writelines(' '.join([dataset]+data)+'\n')
+                print header
             else:
                 info = data[info_idx]
                 conc = data[conc_idx]
@@ -100,6 +102,7 @@ def filter_info(infoFiles, infoCutoff, outWell_imputed, outSNP_acc):
     outWell_imputed_snp_out.close()
     outSNP_accuracy_out.close()
     return well_imputed[dataset],well_imputed_common[dataset]
+
 
 def well_imputed_by_maf(inWell_imputed, outWell_imputed):
     """

@@ -6,17 +6,18 @@
 #PBS -M arngwe001@myuct.ac.za
 #PBS -m ae
 
-HOMEDIR="${HOME}/imputation/Git"
-OUTDIR="/researchdata/fhgfs/arngwe001/combine_report"
+HOMEDIR="${HOME}/imputation/gwen"
+OUTDIR="/researchdata/fhgfs/mamana/combine_report"
 PROJECT="gwen"
 #ls ${HOMEDIR}/combine_report.nf
 ## Compile results
+cd ${OUTDIR}
 nextflow -log ${OUTDIR}/${PROJECT}/LOG/combine_report.log \
     run ${HOMEDIR}/combine_report.nf \
     -c ${HOMEDIR}/combine_report.config \
     -w ${OUTDIR}/work \
-    -resume \
-    -with-trace ${OUTDIR}/${PROJECT}/LOG/combine_report.txt \
-    -with-timeline ${OUTDIR}/${PROJECT}/LOG/combine_report.html \
-    -with-dag ${OUTDIR}/${PROJECT}/LOG/combine_report.dot \
-    -profile pbs
+#    -resume \
+#    -with-trace ${OUTDIR}/${PROJECT}/LOG/combine_report.txt \
+#    -with-timeline ${OUTDIR}/${PROJECT}/LOG/combine_report.html \
+#    -with-dag ${OUTDIR}/${PROJECT}/LOG/combine_report.dot \
+#    -profile pbs

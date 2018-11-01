@@ -94,22 +94,12 @@ chunk_dataset = [:]
 chunk_tagName = [:]
 infos_dataset = [:]
 imputes_dataset = [:]
+imputes_datasets = []
 params.datasets.each{ dat ->
     dataset = dat.key
     all_ref_names.each { ref_name ->
         info = sprintf(dat.value.info, [ref_name,ref_name])
         impute = sprintf(dat.value.impute, [ref_name, ref_name])
-        if (!file(info).exists()) {
-            not_found << info
-            exit 1, "${not_found.size()} File(s) ${not_found.join(', ')} not found. Please check your config file."
-        } else {
-            if (!(dataset in infos_dataset.keySet())){
-                infos_dataset[dataset] = [dataset, ref_name+'=='+info]
-            }
-            else {
-                infos_dataset[dataset][1] = infos_dataset[dataset][1] + ',' + ref_name + '==' + info
-            }
-        }
         if (!file(impute).exists()) {
             not_found << impute
             exit 1, "${not_found.size()} File(s) ${not_found.join(', ')} not found. Please check your config file."
@@ -120,15 +110,65 @@ params.datasets.each{ dat ->
             else {
                 imputes_dataset[dataset][1] = imputes_dataset[dataset][1] + ',' + ref_name + '==' + impute
             }
+            imputes_datasets << dataset+ '==' +ref_name+ '==' +impute
         }
     }
 }
-//
+
+
+//imputes_dataset_cha = Channel.from( imputes_dataset.values() ).view()
+//imputes_dataset_cha.into{ imputes_dataset_cha; imputes_dataset_1 }
+
+"""
+Fill AF and MAF in vcf
+"""
+process fill_vcf {
+    tag "fill_${dataset}_${ref_name}"
+    memory { 10.GB * task.attempt }
+    publishDir "${vcfFile_path}", overwrite: true, mode:'copy'
+    input:
+        val impute from imputes_datasets
+    output:
+        set dataset, ref_name, vcfFile_path, file(vcfFile_new) into fill_vcf
+    script:
+        data = impute.split("==")
+        dataset = data[0]
+        ref_name = data[1]
+        imputeFile = data[2]
+        vcfFile = file(imputeFile).getName()
+        vcfFile_path = file(imputeFile).getParent()
+        infoFile = "${file(vcfFile).baseName}.info"
+        vcfFile_new = "${file(file(vcfFile).baseName).baseName}.AF.vcf.gz"
+        """
+        bcftools +fill-tags ${imputeFile} -Oz -o ${vcfFile_new} -- -t AC,AN,AF,MAF
+        """
+}
+
+
+"""
+Info from VCF
+"""
+fill_vcf.into{fill_vcf; fill_vcf_1; fill_vcf_2}
+process info_from_vcf {
+    tag "info_from_vcf_${dataset}_${ref_name}"
+    memory { 10.GB * task.attempt }
+    publishDir "${vcfFile_path}", overwrite: true, mode:'copy'
+    input:
+        set dataset, ref_name, vcfFile_path, file(vcfFile) from fill_vcf_1
+    output:
+        set dataset, ref_name, file(infoFile) into info_from_vcf
+    script:
+        infoFile = "${file(file(file(vcfFile).baseName).baseName).baseName}.imputed.info"
+        template "info_from_vcf.py"
+}
+
+
+
 //"""
 //Filter grouped by tagname
 //"""
-infos_dataset_cha = Channel.from( infos_dataset.values() )
-infos_dataset_cha.into{ infos_dataset_cha; infos_dataset_1 }
+//infos_dataset_cha = Channel.from( infos_dataset.values() )
+//infos_dataset_cha.into{ infos_dataset_cha; infos_dataset_1 }
 //process filter_infos_dataset {
 //    tag "filter_${dataset}"
 //    memory { 10.GB * task.attempt }
@@ -192,25 +232,25 @@ infos_dataset_cha.into{ infos_dataset_cha; infos_dataset_1 }
 //}
 //
 //
-
-"""
-
-"""
-infos_dataset_cha.into{ infos_dataset_cha; infos_dataset_2 }
-process plot_r2_frequency {
-    tag "plot_r2_freq_${dataset}_${ref_names}_${chrms}"
-    publishDir "${params.output_dir}/REPORTS/PLOTS/${dataset}", overwrite: true, mode:'copy'
-    label "medium"
-    input:
-        set dataset, infos from infos_dataset_2
-    output:
-        set dataset, file(plot_out) into plot_r2_freq
-    script:
-        chrms = chromosomes[0]+"-"+chromosomes[-1]
-        plot_out = "${dataset}_${ref_names}_${chrms}_r2_freq.png"
-        impute_info_cutoff = params.infoCutoff
-        template "r2_Frequency_plot.R"
-}
+//
+//"""
+//
+//"""
+//infos_dataset_cha.into{ infos_dataset_cha; infos_dataset_2 }
+//process plot_r2_frequency {
+//    tag "plot_r2_freq_${dataset}_${ref_names}_${chrms}"
+//    publishDir "${params.output_dir}/REPORTS/PLOTS/${dataset}", overwrite: true, mode:'copy'
+//    label "medium"
+//    input:
+//        set dataset, infos from infos_dataset_2
+//    output:
+//        set dataset, file(plot_out) into plot_r2_freq
+//    script:
+//        chrms = chromosomes[0]+"-"+chromosomes[-1]
+//        plot_out = "${dataset}_${ref_names}_${chrms}_r2_freq.png"
+//        impute_info_cutoff = params.infoCutoff
+//        template "r2_Frequency_plot.R"
+//}
 
 
 //"""
